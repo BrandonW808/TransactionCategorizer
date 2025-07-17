@@ -1,20 +1,4 @@
-// transactions.ts
-import readline from "readline";
-
-export type Transaction = {
-  date: string;
-  description: string;
-  subDescription: string;
-  type: string; // e.g., "Debit" or "Credit"
-  amount: number;
-  balance?: number;
-};
-
-export type Categories = {
-  [mainCategory: string]: {
-    [subCategory: string]: string[]; // array of keywords
-  };
-};
+import { Transaction, Categories, SharedTransaction } from "./types";
 
 export type OutputRow = (string | number)[];
 
@@ -22,10 +6,11 @@ export type OutputRow = (string | number)[];
  * Categorizes a list of transactions based on keyword rules.
  * Returns rows structured like the output spreadsheet.
  */
-export async function categorizeTransactions(
+export function categorizeTransactions(
   transactions: Transaction[],
-  categories: Categories
-): Promise<OutputRow[]> {
+  categories: Categories,
+  autoAssignUnknown: boolean = true
+): OutputRow[] {
   const normalize = (s: string) => s.toLowerCase().replace(/[^\w\s]/g, "").replace(/\s+/g, " ").trim();
 
   const output: OutputRow[] = [];
@@ -39,12 +24,14 @@ export async function categorizeTransactions(
     const description = normalize(`${txn.subDescription ?? ""} ${txn.description ?? ""}`);
     let matched = false;
 
+    // Handle special case for virgin plus
     if (txn.subDescription.toLowerCase().includes('virgin plus') && txn.amount == -153.34) {
       let mainCat = "Expenses";
       let subCat = "Living Expenses";
       if (!categorized[mainCat]) categorized[mainCat] = {};
       if (!categorized[mainCat][subCat]) categorized[mainCat][subCat] = [];
       categorized["Expenses"]["Living Expenses"].push({ desc: `Internet + TV`, amount: -60.16 });
+      
       mainCat = "Expenses";
       subCat = "Phone Bill";
       if (!categorized[mainCat]) categorized[mainCat] = {};
@@ -52,15 +39,17 @@ export async function categorizeTransactions(
       categorized["Expenses"]["Phone Bill"].push({ desc: `Phone Bill`, amount: (txn.amount + 60.16) });
       matched = true;
     } else {
-
+      // Normal categorization
       for (const [mainCat, subCats] of Object.entries(categories)) {
         for (const [subCat, keywords] of Object.entries(subCats)) {
           if (keywords.some(keyword => description.includes(normalize(keyword)))) {
             if (!categorized[mainCat]) categorized[mainCat] = {};
             if (!categorized[mainCat][subCat]) categorized[mainCat][subCat] = [];
-            console.log(`Subdesc: ${txn.subDescription} Amount: ${txn.amount}`);
-
-            categorized[mainCat][subCat].push({ desc: `${txn.description} ${txn.subDescription}`, amount: txn.amount });
+            
+            categorized[mainCat][subCat].push({ 
+              desc: `${txn.description} ${txn.subDescription}`, 
+              amount: txn.amount 
+            });
 
             matched = true;
             break;
@@ -70,29 +59,32 @@ export async function categorizeTransactions(
       }
     }
 
-
+    // Handle unmatched transactions
     if (!matched) {
       if (txn.description.includes("date=")) {
         continue;
       }
-      const userInput = await promptForCategory(`${txn.subDescription} ${txn.description}`);
-      if (userInput && categories.Expenses?.[userInput]) {
-        const subCat = userInput;
+      
+      if (autoAssignUnknown) {
+        // Auto-assign to "Misc Spending" if not matched
         const mainCat = "Expenses";
+        const subCat = "Misc Spending";
         if (!categorized[mainCat]) categorized[mainCat] = {};
         if (!categorized[mainCat][subCat]) categorized[mainCat][subCat] = [];
-        categorized[mainCat][subCat].push({ desc: `${txn.description} ${txn.subDescription}`, amount: txn.amount });
-      } else {
-        // Handle unknown user input (optional: log, skip, etc.)
-        console.warn(`Unknown category input: "${userInput}". Transaction skipped.`);
+        categorized[mainCat][subCat].push({ 
+          desc: `${txn.description} ${txn.subDescription}`, 
+          amount: txn.amount 
+        });
       }
     }
   }
 
-  const subcats = Object.keys(categories.Expenses);
+  // Build output format
+  const expenseCategories = categories.Expenses ? Object.keys(categories.Expenses) : [];
   const headerRow1: OutputRow = ["Expenses"];
   const headerRow2: OutputRow = [""];
-  for (const sub of subcats) {
+  
+  for (const sub of expenseCategories) {
     headerRow1.push(sub, "");
     headerRow2.push("Description", "Amount");
   }
@@ -100,11 +92,11 @@ export async function categorizeTransactions(
   output.push(headerRow1);
   output.push(headerRow2);
 
-  const maxRows = Math.max(...subcats.map(sub => categorized.Expenses?.[sub]?.length || 0));
+  const maxRows = Math.max(...expenseCategories.map(sub => categorized.Expenses?.[sub]?.length || 0));
 
   for (let i = 0; i < maxRows; i++) {
     const row: OutputRow = [""];
-    for (const sub of subcats) {
+    for (const sub of expenseCategories) {
       const entry = categorized.Expenses?.[sub]?.[i];
       row.push(entry?.desc ?? "", entry ? `$ ${entry.amount.toFixed(2)}` : "");
     }
@@ -113,7 +105,7 @@ export async function categorizeTransactions(
 
   // Totals row
   const totalRow: OutputRow = ["Total"];
-  for (const sub of subcats) {
+  for (const sub of expenseCategories) {
     const total = (categorized.Expenses?.[sub] || []).reduce((sum, entry) => sum + entry.amount, 0);
     totalRow.push("", total ? `$ ${total.toFixed(2)}` : "$ -");
   }
@@ -124,7 +116,7 @@ export async function categorizeTransactions(
 
 export function processSharedTransactions(
   output: OutputRow[],
-  shared: { description: string; total: number; brandon: number; expense: string }[]
+  shared: SharedTransaction[]
 ): OutputRow[] {
   const headerRow = output[0];
   const subcategoryIndexMap: { [subcategory: string]: number } = {};
@@ -143,6 +135,7 @@ export function processSharedTransactions(
     const { description, total, brandon, expense } = sharedTxn;
     let matched = false;
 
+    // Try to match by amount
     for (const row of bodyRows) {
       for (let i = 2; i < row.length; i += 2) {
         const cell = row[i];
@@ -157,8 +150,8 @@ export function processSharedTransactions(
       if (matched) break;
     }
 
+    // If not matched, add as new row
     if (!matched) {
-      // Try to locate a subcategory column that matches the description
       const lowerExpense = expense.toLowerCase();
       const matchedSubcat = Object.entries(subcategoryIndexMap).find(([subcat]) => subcat === lowerExpense);
       const targetIndex = matchedSubcat ? matchedSubcat[1] : 1; // default to 1 if none matched
@@ -178,16 +171,28 @@ export function processSharedTransactions(
   return output;
 }
 
-export async function promptForCategory(description: string): Promise<string> {
-  const rl = readline.createInterface({
-    input: process.stdin,
-    output: process.stdout
-  });
-
-  return new Promise(resolve => {
-    rl.question(`No category found for: "${description}". Please enter a category: `, (answer) => {
-      rl.close();
-      resolve(answer.trim());
-    });
-  });
+export function getDefaultCategories(): Categories {
+  return {
+    Income: {
+      Kinect: ["dataannotation", "kinect"],
+      Other: ["e-transfer", "deposit", "income"]
+    },
+    Expenses: {
+      "Living Expenses": ["rent", "hydro", "utility", "insurance", "bill", "property tax"],
+      "Groceries": ["walmart", "superstore", "loblaws", "costco", "iga", "super c", "the village store", "freshmarket", "athens fresh market"],
+      "Pets": ["vet", "petco", "petland"],
+      "Subscriptions": ["spotify", "netflix", "crave", "subscription", "prime", "virgin plus", "disney", "github"],
+      "Phone Bill": ["rogers", "bell", "fido", "koodo", "phone"],
+      "Alcohol": ["liquor", "beer store", "lcbo", "fpos Saq"],
+      "Non-Grocery Food": ["restaurant", "ubereats", "skipthe", "fast food", "mcdonalds", "tim hortons", "coffee", "couchetard", "convenien", "A & W", "Picton On vic social", "Picton On metro", "Kettleman'S"],
+      "Misc Spending": ["service charge", "fee", "bank charge", "big al's aquarium", "value village", "amzn", "affirm canada", "physio outaouais", "amazon.ca", "sail",
+          "kindle", " L'As Des Jeux ", "sessions cannabis", "interest charges", "justice quebec amendes", "dollarama", "cdkeys"],
+      "Automotive": ["petro-canada", "esso", "shell", "gas", "car", "tire", "maintenance", "pioneer", "macewen"],
+      "Gifts": [],
+      "Dates": ["cinema", "famous players", "dinner", "flower", "midtown brewing", "currah's cafe", "karlo estates", "prince eddy"],
+      "Loans": ["loan", "student", "repayment", "nslsc"],
+      "Trips": ["airbnb", "flight", "air canada", "hotel", "expedia", "mecp-ontpark-int-resorill"],
+      "Sailboat Work": ["marine", "boat", "chandlery"]
+    }
+  };
 }
