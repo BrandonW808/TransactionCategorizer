@@ -1,0 +1,17 @@
+{
+  "name": "transaction-categorizer",
+  "version": "1.0.0",
+  "main": "index.ts",
+  "scripts": {
+    "start": "tsc && npm run parseFile",
+    "parseFile": "node dist/index"
+  },
+  "dependencies": {
+    "csv-parse": "^5.5.4"
+  },
+  "devDependencies": {
+    "@types/node": "^20.19.8",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.8.3"
+  }
+}
