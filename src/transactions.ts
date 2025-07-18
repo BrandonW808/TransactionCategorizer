@@ -1,5 +1,4 @@
 import { Transaction, Categories, SharedTransaction } from "./types";
-import fs from 'fs';
 
 export type OutputRow = (string | number)[];
 
@@ -170,63 +169,4 @@ export function processSharedTransactions(
   }
 
   return output;
-}
-
-export function getDefaultCategories(): Categories {
-  return {
-    Income: {
-      Kinect: ["dataannotation", "kinect"],
-      Other: ["e-transfer", "deposit", "income"]
-    },
-    Expenses: {
-      "Living Expenses": ["rent", "hydro", "utility", "insurance", "bill", "property tax"],
-      "Groceries": ["walmart", "superstore", "loblaws", "costco", "iga", "super c", "the village store", "freshmarket", "athens fresh market"],
-      "Pets": ["vet", "petco", "petland"],
-      "Subscriptions": ["spotify", "netflix", "crave", "subscription", "prime", "virgin plus", "disney", "github"],
-      "Phone Bill": ["rogers", "bell", "fido", "koodo", "phone"],
-      "Alcohol": ["liquor", "beer store", "lcbo", "fpos Saq"],
-      "Non-Grocery Food": ["restaurant", "ubereats", "skipthe", "fast food", "mcdonalds", "tim hortons", "coffee", "couchetard", "convenien", "A & W", "Picton On vic social", "Picton On metro", "Kettleman'S"],
-      "Misc Spending": ["service charge", "fee", "bank charge", "big al's aquarium", "value village", "amzn", "affirm canada", "physio outaouais", "amazon.ca", "sail",
-        "kindle", " L'As Des Jeux ", "sessions cannabis", "interest charges", "justice quebec amendes", "dollarama", "cdkeys"],
-      "Automotive": ["petro-canada", "esso", "shell", "gas", "car", "tire", "maintenance", "pioneer", "macewen"],
-      "Gifts": [],
-      "Dates": ["cinema", "famous players", "dinner", "flower", "midtown brewing", "currah's cafe", "karlo estates", "prince eddy"],
-      "Loans": ["loan", "student", "repayment", "nslsc"],
-      "Trips": ["airbnb", "flight", "air canada", "hotel", "expedia", "mecp-ontpark-int-resorill"],
-      "Sailboat Work": ["marine", "boat", "chandlery"]
-    }
-  };
-}
-
-export function getCategoriesList(): Promise<string[]> {
-  return new Promise((resolve, reject) => {
-    fs.readdir('/categories', { withFileTypes: true }, (err, files) => {
-      if (err) {
-        reject(err);
-        return;
-      }
-
-      // Filter only regular files (exclude directories)
-      const fileList = files
-        .filter((dirent) => dirent.isFile())
-        .map((dirent) => dirent.name);
-
-      resolve(fileList);
-    });
-  });
-}
-
-export function addToCategoriesList(name: string, categories: Categories): Promise<string> {
-  return new Promise(async (resolve, reject) => {
-    try {
-      const fileName = `categories/${name}.json`;
-      const jsonData = JSON.stringify(categories, null, 2); // Pretty print with 2-space indent
-      fs.writeFile(fileName, jsonData, function () {
-        resolve(fileName);
-      });
-    } catch (error) {
-      console.error(`Failed to write JSON to file:`, error);
-      throw error;
-    }
-  });
 }

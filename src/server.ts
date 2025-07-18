@@ -1,11 +1,16 @@
-import express from 'express';
+import express, { Express, Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import compression from 'compression';
-import path from 'path';
+import dotenv from 'dotenv';
+import { connectToDatabase, closeDatabase } from './db/mongodb';
+import { CategoryListService } from './services/categoryListService';
 import routes from './routes';
 
-const app = express();
+// Load environment variables
+dotenv.config();
+
+const app: Express = express();
 const PORT = process.env.PORT || 3000;
 
 // Middleware
@@ -18,34 +23,20 @@ app.use(helmet({
       imgSrc: ["'self'", "data:", "https:"],
     },
   },
-})); app.use(compression());
+}));
 app.use(cors());
+app.use(compression());
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-app.use(express.static(path.join(__dirname, '../public')));
+// Static files
+app.use(express.static('public'));
 
-// Routes
+// API routes
 app.use('/api', routes);
 
-// Documentation endpoint
-app.get('/api', (req, res) => {
-  res.json({
-    message: 'Transaction Categorizer API',
-    version: '1.0.0',
-    endpoints: {
-      health: 'GET /api/health',
-      categories: 'GET /api/categories',
-      categorize: 'POST /api/categorize',
-      categorizeCsv: 'POST /api/categorize-csv',
-      parseCsv: 'POST /api/parse-csv',
-      exportCsv: 'POST /api/export-csv'
-    }
-  });
-});
-
 // Error handling middleware
-app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
+app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
   console.error('Error:', err);
   res.status(500).json({
     success: false,
@@ -55,17 +46,55 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
 });
 
 // 404 handler
-app.use((req: express.Request, res: express.Response) => {
+app.use((req: Request, res: Response) => {
   res.status(404).json({
     success: false,
     error: 'Endpoint not found'
   });
 });
 
-// Start server
-app.listen(PORT, () => {
-  console.log(`🚀 Transaction Categorizer API running on port ${PORT}`);
-  console.log(`📚 API Documentation available at http://localhost:${PORT}/`);
-});
+// Graceful shutdown
+let server: any;
+
+async function startServer() {
+  try {
+    // Connect to MongoDB
+    await connectToDatabase();
+
+    // Initialize default categories
+    await CategoryListService.initializeDefaultCategories();
+
+    // Start server
+    server = app.listen(PORT, () => {
+      console.log(`Server is running on port ${PORT}`);
+      console.log(`Health check available at http://localhost:${PORT}/api/health`);
+    });
+  } catch (error) {
+    console.error('Failed to start server:', error);
+    process.exit(1);
+  }
+}
+
+async function shutdownServer(signal: string) {
+  console.log(`${signal} received: closing HTTP server`);
+
+  if (server) {
+    server.close(async () => {
+      console.log('HTTP server closed');
+
+      // Close database connection
+      await closeDatabase();
+
+      process.exit(0);
+    });
+  }
+}
+
+// Handle shutdown signals
+process.on('SIGTERM', () => shutdownServer('SIGTERM'));
+process.on('SIGINT', () => shutdownServer('SIGINT'));
+
+// Start the server
+startServer();
 
 export default app;

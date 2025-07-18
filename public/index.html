@@ -5,7 +5,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport"
           content="width=device-width, initial-scale=1.0" />
-    <title>Transaction Categorizer</title>
+    <title>Transaction Categorizer v2.0</title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -40,6 +40,11 @@
 
         button:hover {
             background-color: #45a049;
+        }
+
+        button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
         }
 
         .button-secondary {
@@ -121,14 +126,55 @@
         .hidden {
             display: none;
         }
+
+        select {
+            padding: 0.5rem;
+            font-size: 1rem;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            margin-right: 1rem;
+        }
+
+        .category-select-container {
+            margin-bottom: 1rem;
+        }
+
+        .status {
+            padding: 0.5rem 1rem;
+            margin: 1rem 0;
+            border-radius: 4px;
+            display: none;
+        }
+
+        .status.success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .status.error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
     </style>
 </head>
 
 <body>
-    <h1>Transaction Categorizer</h1>
+    <h1>Transaction Categorizer v2.0</h1>
 
     <div class="section">
         <h2 class="section-header">Upload CSV Files</h2>
+
+        <div class="category-select-container">
+            <label for="categoryList">Category List:</label>
+            <select id="categoryList">
+                <option value="">Loading category lists...</option>
+            </select>
+            <button id="refreshListsBtn"
+                    class="button-secondary">Refresh Lists</button>
+        </div>
+
         <div class="file-upload">
             <label class="file-upload-label"
                    for="transactionFile">Transaction CSV File:</label>
@@ -153,6 +199,9 @@
             <div id="loader"
                  class="loader"></div>
         </div>
+
+        <div id="status"
+             class="status"></div>
     </div>
 
     <div id="csvDataSection"
@@ -179,16 +228,25 @@
             const parseBtn = document.getElementById('parseBtn');
             const categorizeBtn = document.getElementById('categorizeBtn');
             const downloadBtn = document.getElementById('downloadBtn');
+            const refreshListsBtn = document.getElementById('refreshListsBtn');
+            const categoryList = document.getElementById('categoryList');
             const csvDataTable = document.getElementById('csvDataTable');
             const categorizedTable = document.getElementById('categorizedTable');
             const csvDataSection = document.getElementById('csvDataSection');
             const categorizedSection = document.getElementById('categorizedSection');
             const loader = document.getElementById('loader');
+            const status = document.getElementById('status');
+
+            // Load category lists on page load
+            loadCategoryLists();
+
+            // Refresh lists button
+            refreshListsBtn.addEventListener('click', loadCategoryLists);
 
             // Parse button click handler
             parseBtn.addEventListener('click', async function () {
                 if (!transactionFile.files.length) {
-                    alert('Please select a transaction CSV file');
+                    showStatus('Please select a transaction CSV file', 'error');
                     return;
                 }
 
@@ -199,16 +257,17 @@
                     hideLoader();
                     csvDataSection.classList.remove('hidden');
                     categorizedSection.classList.add('hidden');
+                    showStatus(`Parsed ${data.transactions.length} transactions successfully`, 'success');
                 } catch (error) {
                     hideLoader();
-                    alert('Error parsing CSV: ' + error.message);
+                    showStatus('Error parsing CSV: ' + error.message, 'error');
                 }
             });
 
             // Categorize button click handler
             categorizeBtn.addEventListener('click', async function () {
                 if (!transactionFile.files.length) {
-                    alert('Please select a transaction CSV file');
+                    showStatus('Please select a transaction CSV file', 'error');
                     return;
                 }
 
@@ -220,16 +279,17 @@
                     hideLoader();
                     csvDataSection.classList.remove('hidden');
                     categorizedSection.classList.remove('hidden');
+                    showStatus('Transactions categorized successfully', 'success');
                 } catch (error) {
                     hideLoader();
-                    alert('Error categorizing transactions: ' + error.message);
+                    showStatus('Error categorizing transactions: ' + error.message, 'error');
                 }
             });
 
             // Download button click handler
             downloadBtn.addEventListener('click', async function () {
                 if (!transactionFile.files.length) {
-                    alert('Please select a transaction CSV file');
+                    showStatus('Please select a transaction CSV file', 'error');
                     return;
                 }
 
@@ -237,11 +297,34 @@
                     showLoader();
                     await downloadCategorizedCSV();
                     hideLoader();
+                    showStatus('CSV downloaded successfully', 'success');
                 } catch (error) {
                     hideLoader();
-                    alert('Error downloading CSV: ' + error.message);
+                    showStatus('Error downloading CSV: ' + error.message, 'error');
                 }
             });
+
+            // Load category lists
+            async function loadCategoryLists() {
+                try {
+                    const response = await fetch('/api/category-lists');
+                    const result = await response.json();
+
+                    if (!result.success) {
+                        throw new Error(result.error);
+                    }
+
+                    categoryList.innerHTML = '<option value="">Use default categories</option>';
+                    result.data.forEach(list => {
+                        const option = document.createElement('option');
+                        option.value = list._id;
+                        option.textContent = list.name + (list.isDefault ? ' (Default)' : '');
+                        categoryList.appendChild(option);
+                    });
+                } catch (error) {
+                    showStatus('Error loading category lists: ' + error.message, 'error');
+                }
+            }
 
             // Parse CSV files
             async function parseCSV() {
@@ -252,7 +335,7 @@
                     formData.append('shared', sharedFile.files[0]);
                 }
 
-                const response = await fetch('http://localhost:3000/api/parse-csv', {
+                const response = await fetch('/api/transactions/parse-csv', {
                     method: 'POST',
                     body: formData
                 });
@@ -282,7 +365,12 @@
                     formData.append('shared', sharedFile.files[0]);
                 }
 
-                const response = await fetch('http://localhost:3000/api/categorize-csv', {
+                // Add selected category list if any
+                if (categoryList.value) {
+                    formData.append('categoryListId', categoryList.value);
+                }
+
+                const response = await fetch('/api/transactions/categorize-csv', {
                     method: 'POST',
                     body: formData
                 });
@@ -291,9 +379,16 @@
                     throw new Error(`Error ${response.status}: ${response.statusText}`);
                 }
 
-                const parseResponse = await fetch('http://localhost:3000/api/parse-csv', {
+                // Also parse to get raw data
+                const parseFormData = new FormData();
+                parseFormData.append('transactions', transactionFile.files[0]);
+                if (sharedFile.files.length) {
+                    parseFormData.append('shared', sharedFile.files[0]);
+                }
+
+                const parseResponse = await fetch('/api/transactions/parse-csv', {
                     method: 'POST',
-                    body: formData
+                    body: parseFormData
                 });
 
                 if (!parseResponse.ok) {
@@ -322,7 +417,12 @@
                     formData.append('shared', sharedFile.files[0]);
                 }
 
-                const response = await fetch('http://localhost:3000/api/categorize-csv', {
+                // Add selected category list if any
+                if (categoryList.value) {
+                    formData.append('categoryListId', categoryList.value);
+                }
+
+                const response = await fetch('/api/transactions/categorize-csv', {
                     method: 'POST',
                     body: formData
                 });
@@ -417,6 +517,7 @@
                 parseBtn.disabled = true;
                 categorizeBtn.disabled = true;
                 downloadBtn.disabled = true;
+                refreshListsBtn.disabled = true;
             }
 
             // Hide loader
@@ -425,6 +526,21 @@
                 parseBtn.disabled = false;
                 categorizeBtn.disabled = false;
                 downloadBtn.disabled = false;
+                refreshListsBtn.disabled = false;
+            }
+
+            // Show status message
+            function showStatus(message, type) {
+                status.textContent = message;
+                status.className = 'status ' + type;
+                status.style.display = 'block';
+
+                // Auto-hide success messages after 5 seconds
+                if (type === 'success') {
+                    setTimeout(() => {
+                        status.style.display = 'none';
+                    }, 5000);
+                }
             }
         });
     </script>

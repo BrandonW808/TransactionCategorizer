@@ -1,169 +1,171 @@
-# Transaction Categorizer API
+# Transaction Categorizer API v2.0
 
-A REST API for categorizing bank transactions from CSV files. This API automatically categorizes transactions based on configurable keyword rules and supports shared expense processing.
+A REST API for categorizing bank transactions with MongoDB storage for users and category lists.
 
-## Features
+## What's New in v2.0
 
-- **Transaction Categorization**: Automatically categorizes bank transactions using keyword matching
-- **CSV File Upload**: Upload transaction and shared expense CSV files
-- **Configurable Categories**: Use default categories or provide custom categorization rules
-- **Shared Expense Processing**: Handle shared expenses with custom allocation
-- **Multiple Output Formats**: Get results as JSON or downloadable CSV
-- **RESTful API**: Clean REST endpoints with proper error handling
+- **MongoDB Integration**: Users and category lists are now stored in MongoDB instead of the file system
+- **Separate API Endpoints**: Clean RESTful API design with separate endpoints for users, category lists, and transactions
+- **Better Data Management**: Full CRUD operations for users and category lists
+- **Backward Compatibility**: Legacy endpoints redirect to new API structure
+
+## Prerequisites
+
+- Node.js 18.0.0 or higher
+- MongoDB 4.4 or higher
+- npm or yarn
 
 ## Installation
 
-1. Clone or download the project
+1. Clone the repository
 2. Install dependencies:
    ```bash
    npm install
    ```
 
-3. Build the project:
+3. Set up environment variables:
+   ```bash
+   cp .env.example .env
+   ```
+   Edit `.env` with your MongoDB connection details
+
+4. Build the project:
    ```bash
    npm run build
    ```
 
-4. Start the server:
+5. Start the server:
    ```bash
    npm start
    ```
 
-   Or for development:
+   For development with auto-reload:
    ```bash
    npm run dev
    ```
 
-The API will be available at `http://localhost:3000`
-
 ## API Endpoints
 
 ### Health Check
-```http
-GET /api/health
+- `GET /api/health` - Check if the API is running
+
+### Users
+- `GET /api/users` - Get all users
+- `GET /api/users/:id` - Get a user by ID
+- `GET /api/users/search?q=query` - Search users by name
+- `POST /api/users` - Create a new user
+- `PUT /api/users/:id` - Update a user
+- `DELETE /api/users/:id` - Delete a user
+
+#### Create User Example:
+```json
+POST /api/users
+{
+  "name": "John Doe",
+  "email": "john@example.com"
+}
 ```
 
-Returns the API health status.
+### Category Lists
+- `GET /api/category-lists` - Get all category lists
+- `GET /api/category-lists/:id` - Get a category list by ID
+- `GET /api/category-lists/default` - Get the default category list
+- `GET /api/category-lists/search?q=query` - Search category lists by name
+- `POST /api/category-lists` - Create a new category list
+- `PUT /api/category-lists/:id` - Update a category list
+- `DELETE /api/category-lists/:id` - Delete a category list
 
-### Get Default Categories
-```http
-GET /api/categories
+#### Create Category List Example:
+```json
+POST /api/category-lists
+{
+  "name": "Personal Budget",
+  "categories": {
+    "Income": {
+      "Salary": ["payroll", "salary"],
+      "Freelance": ["consulting", "contract"]
+    },
+    "Expenses": {
+      "Groceries": ["walmart", "superstore"],
+      "Transportation": ["gas", "uber", "transit"]
+    }
+  },
+  "isDefault": false
+}
 ```
 
-Returns the default categorization rules.
+### Transactions
+- `POST /api/transactions/categorize` - Categorize transactions (JSON input)
+- `POST /api/transactions/categorize-csv` - Categorize transactions (CSV upload)
+- `POST /api/transactions/parse-csv` - Parse CSV without categorization
+- `POST /api/transactions/export-csv` - Export categorized transactions as CSV
 
-### Categorize Transactions (JSON)
-```http
-POST /api/categorize
-Content-Type: application/json
-
+#### Categorize Transactions Example:
+```json
+POST /api/transactions/categorize
 {
   "transactions": [
     {
       "date": "2024-01-15",
-      "description": "WALMART",
-      "subDescription": "GROCERY PURCHASE",
+      "description": "WALMART SUPERCENTER",
+      "subDescription": "Grocery shopping",
       "type": "Debit",
-      "amount": -45.67,
-      "balance": 1234.56
+      "amount": -85.50
     }
   ],
-  "categories": {
-    "Expenses": {
-      "Groceries": ["walmart", "superstore", "loblaws"]
+  "categoryListId": "507f1f77bcf86cd799439011"  // Optional: use specific category list
+}
+```
+
+## MongoDB Schema
+
+### Users Collection
+```javascript
+{
+  _id: ObjectId,
+  name: String,
+  email: String (unique),
+  createdAt: Date,
+  updatedAt: Date
+}
+```
+
+### Category Lists Collection
+```javascript
+{
+  _id: ObjectId,
+  name: String (unique),
+  categories: {
+    [mainCategory]: {
+      [subCategory]: [keywords]
     }
   },
-  "sharedTransactions": [
-    {
-      "description": "Shared grocery expense",
-      "total": 45.67,
-      "brandon": 22.84,
-      "expense": "groceries"
-    }
-  ]
+  isDefault: Boolean,
+  createdAt: Date,
+  updatedAt: Date
 }
 ```
 
-### Upload and Categorize CSV Files
-```http
-POST /api/categorize-csv
-Content-Type: multipart/form-data
+## Migration from v1.0
 
-Form fields:
-- transactions: CSV file (required)
-- shared: CSV file (optional)
-- categories: JSON string (optional)
-```
+The new version maintains backward compatibility through redirects:
+- `/api/categories` → `/api/category-lists/default`
+- `/api/categoriesList` → `/api/category-lists`
+- `/api/categorize` → `/api/transactions/categorize`
+- `/api/categorize-csv` → `/api/transactions/categorize-csv`
 
-#### Transaction CSV Format
-```csv
-Date,Description,Sub-Description,Type of Transaction,Amount,Balance
-2024-01-15,WALMART,GROCERY PURCHASE,Debit,-45.67,1234.56
-```
+However, it's recommended to update your integrations to use the new endpoints directly.
 
-#### Shared Expenses CSV Format
-```csv
-Date,Expense,Description,Total,Brandon
-2024-01-15,groceries,Shared grocery expense,45.67,22.84
-```
+## Environment Variables
 
-### Parse CSV (No Categorization)
-```http
-POST /api/parse-csv
-Content-Type: multipart/form-data
-
-Form fields:
-- transactions: CSV file (required)
-- shared: CSV file (optional)
-```
-
-Returns parsed transaction data without categorization.
-
-### Export Categorized CSV
-```http
-POST /api/export-csv
-Content-Type: application/json
-
-{
-  "transactions": [...],
-  "categories": {...},
-  "sharedTransactions": [...]
-}
-```
-
-Returns a downloadable CSV file with categorized transactions.
-
-## Default Categories
-
-The API comes with pre-configured categories including:
-
-- **Income**: Kinect, Other
-- **Expenses**: Living Expenses, Groceries, Pets, Subscriptions, Phone Bill, Alcohol, Non-Grocery Food, Misc Spending, Automotive, Gifts, Dates, Loans, Trips, Sailboat Work
-
-Each category has associated keywords for automatic matching.
-
-## Custom Categories
-
-You can provide custom categorization rules:
-
-```json
-{
-  "categories": {
-    "Income": {
-      "Salary": ["payroll", "salary", "wage"],
-      "Freelance": ["contract", "freelance", "consulting"]
-    },
-    "Expenses": {
-      "Food": ["restaurant", "grocery", "food"],
-      "Transport": ["gas", "transit", "uber", "taxi"]
-    }
-  }
-}
-```
+- `MONGODB_URI`: MongoDB connection string (default: `mongodb://localhost:27017`)
+- `MONGODB_DB_NAME`: Database name (default: `transaction_categorizer`)
+- `PORT`: Server port (default: `3000`)
+- `NODE_ENV`: Environment mode (`development` or `production`)
 
 ## Error Handling
 
-All endpoints return standardized error responses:
+All endpoints return consistent error responses:
 
 ```json
 {
@@ -173,69 +175,21 @@ All endpoints return standardized error responses:
 }
 ```
 
-## Response Format
-
-Success responses follow this format:
+Success responses follow the format:
 
 ```json
 {
   "success": true,
-  "data": {
-    // Response data
-  }
+  "data": { ... }
 }
 ```
 
 ## Development
 
-### Scripts
-
-- `npm run dev` - Start development server with hot reload
-- `npm run build` - Build TypeScript to JavaScript
-- `npm start` - Start production server
-- `npm test` - Run tests (if configured)
-
-### Project Structure
-
-```
-src/
-├── server.ts          # Express server setup
-├── routes.ts          # API route definitions
-├── transactions.ts    # Transaction categorization logic
-├── parser.ts          # CSV parsing functions
-└── types.ts          # TypeScript type definitions
-```
-
-## Docker Support
-
-You can also run this API using Docker:
-
-```dockerfile
-FROM node:18
-
-WORKDIR /app
-COPY package*.json ./
-RUN npm install
-COPY . .
-RUN npm run build
-
-EXPOSE 3000
-CMD ["npm", "start"]
-```
-
-## Environment Variables
-
-- `PORT` - Server port (default: 3000)
-- `NODE_ENV` - Environment (development/production)
-
-## Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Add tests if applicable
-5. Submit a pull request
+- Run tests: `npm test`
+- Build: `npm run build`
+- Development server: `npm run dev`
 
 ## License
 
-This project is licensed under the MIT License.
+MIT

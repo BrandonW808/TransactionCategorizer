@@ -1,3 +1,5 @@
+import { ObjectId } from 'mongodb';
+
 export interface Transaction {
   date: string;
   description: string;
@@ -44,3 +46,43 @@ export interface SuccessResponse<T> {
 }
 
 export type ApiResponse<T> = SuccessResponse<T> | ErrorResponse;
+
+// New interfaces for MongoDB storage
+export interface User {
+  _id?: ObjectId;
+  name: string;
+  email: string;
+  createdAt?: Date;
+  updatedAt?: Date;
+}
+
+export interface CategoryList {
+  _id?: ObjectId;
+  name: string;
+  categories: Categories;
+  isDefault?: boolean;
+  createdAt?: Date;
+  updatedAt?: Date;
+}
+
+export interface CreateUserRequest {
+  name: string;
+  email: string;
+}
+
+export interface UpdateUserRequest {
+  name?: string;
+  email?: string;
+}
+
+export interface CreateCategoryListRequest {
+  name: string;
+  categories: Categories;
+  isDefault?: boolean;
+}
+
+export interface UpdateCategoryListRequest {
+  name?: string;
+  categories?: Categories;
+  isDefault?: boolean;
+}
