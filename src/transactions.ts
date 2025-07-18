@@ -1,4 +1,5 @@
 import { Transaction, Categories, SharedTransaction } from "./types";
+import fs from 'fs';
 
 export type OutputRow = (string | number)[];
 
@@ -31,7 +32,7 @@ export function categorizeTransactions(
       if (!categorized[mainCat]) categorized[mainCat] = {};
       if (!categorized[mainCat][subCat]) categorized[mainCat][subCat] = [];
       categorized["Expenses"]["Living Expenses"].push({ desc: `Internet + TV`, amount: -60.16 });
-      
+
       mainCat = "Expenses";
       subCat = "Phone Bill";
       if (!categorized[mainCat]) categorized[mainCat] = {};
@@ -45,10 +46,10 @@ export function categorizeTransactions(
           if (keywords.some(keyword => description.includes(normalize(keyword)))) {
             if (!categorized[mainCat]) categorized[mainCat] = {};
             if (!categorized[mainCat][subCat]) categorized[mainCat][subCat] = [];
-            
-            categorized[mainCat][subCat].push({ 
-              desc: `${txn.description} ${txn.subDescription}`, 
-              amount: txn.amount 
+
+            categorized[mainCat][subCat].push({
+              desc: `${txn.description} ${txn.subDescription}`,
+              amount: txn.amount
             });
 
             matched = true;
@@ -64,16 +65,16 @@ export function categorizeTransactions(
       if (txn.description.includes("date=")) {
         continue;
       }
-      
+
       if (autoAssignUnknown) {
         // Auto-assign to "Misc Spending" if not matched
         const mainCat = "Expenses";
         const subCat = "Misc Spending";
         if (!categorized[mainCat]) categorized[mainCat] = {};
         if (!categorized[mainCat][subCat]) categorized[mainCat][subCat] = [];
-        categorized[mainCat][subCat].push({ 
-          desc: `${txn.description} ${txn.subDescription}`, 
-          amount: txn.amount 
+        categorized[mainCat][subCat].push({
+          desc: `${txn.description} ${txn.subDescription}`,
+          amount: txn.amount
         });
       }
     }
@@ -83,7 +84,7 @@ export function categorizeTransactions(
   const expenseCategories = categories.Expenses ? Object.keys(categories.Expenses) : [];
   const headerRow1: OutputRow = ["Expenses"];
   const headerRow2: OutputRow = [""];
-  
+
   for (const sub of expenseCategories) {
     headerRow1.push(sub, "");
     headerRow2.push("Description", "Amount");
@@ -186,7 +187,7 @@ export function getDefaultCategories(): Categories {
       "Alcohol": ["liquor", "beer store", "lcbo", "fpos Saq"],
       "Non-Grocery Food": ["restaurant", "ubereats", "skipthe", "fast food", "mcdonalds", "tim hortons", "coffee", "couchetard", "convenien", "A & W", "Picton On vic social", "Picton On metro", "Kettleman'S"],
       "Misc Spending": ["service charge", "fee", "bank charge", "big al's aquarium", "value village", "amzn", "affirm canada", "physio outaouais", "amazon.ca", "sail",
-          "kindle", " L'As Des Jeux ", "sessions cannabis", "interest charges", "justice quebec amendes", "dollarama", "cdkeys"],
+        "kindle", " L'As Des Jeux ", "sessions cannabis", "interest charges", "justice quebec amendes", "dollarama", "cdkeys"],
       "Automotive": ["petro-canada", "esso", "shell", "gas", "car", "tire", "maintenance", "pioneer", "macewen"],
       "Gifts": [],
       "Dates": ["cinema", "famous players", "dinner", "flower", "midtown brewing", "currah's cafe", "karlo estates", "prince eddy"],
@@ -195,4 +196,37 @@ export function getDefaultCategories(): Categories {
       "Sailboat Work": ["marine", "boat", "chandlery"]
     }
   };
+}
+
+export function getCategoriesList(): Promise<string[]> {
+  return new Promise((resolve, reject) => {
+    fs.readdir('/categories', { withFileTypes: true }, (err, files) => {
+      if (err) {
+        reject(err);
+        return;
+      }
+
+      // Filter only regular files (exclude directories)
+      const fileList = files
+        .filter((dirent) => dirent.isFile())
+        .map((dirent) => dirent.name);
+
+      resolve(fileList);
+    });
+  });
+}
+
+export function addToCategoriesList(name: string, categories: Categories): Promise<string> {
+  return new Promise(async (resolve, reject) => {
+    try {
+      const fileName = `categories/${name}.json`;
+      const jsonData = JSON.stringify(categories, null, 2); // Pretty print with 2-space indent
+      fs.writeFile(fileName, jsonData, function () {
+        resolve(fileName);
+      });
+    } catch (error) {
+      console.error(`Failed to write JSON to file:`, error);
+      throw error;
+    }
+  });
 }

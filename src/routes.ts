@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
 import multer from 'multer';
 import { parseTransactionCSV, parseSharedCsv, parseMultipleFiles } from './parser';
-import { categorizeTransactions, processSharedTransactions, getDefaultCategories } from './transactions';
+import { categorizeTransactions, processSharedTransactions, getDefaultCategories, getCategoriesList, addToCategoriesList } from './transactions';
 import { CategorizeRequest, ApiResponse, Categories, Transaction, SharedTransaction } from './types';
 
 const router = Router();
@@ -21,6 +21,43 @@ router.get('/categories', (req: Request, res: Response) => {
     res.status(500).json({
       success: false,
       error: 'Failed to get default categories',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+// Get default categories
+router.get('/categoriesList', (req: Request, res: Response) => {
+  try {
+    const list = getCategoriesList();
+    res.json({ success: true, data: list });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: 'Failed to get default categories',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+// Categorize transactions (JSON input)
+router.post('/categoriesList', (req: Request, res: Response) => {
+  try {
+    const { name, categories } = req.body;
+    if (!name || !categories) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid request: name and categories are required'
+      });
+    }
+
+    addToCategoriesList(name, categories).then((fileName: string) => {
+      res.json({ success: true, data: fileName });
+    })
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: 'Failed to categorize transactions',
       details: error instanceof Error ? error.message : 'Unknown error'
     });
   }
