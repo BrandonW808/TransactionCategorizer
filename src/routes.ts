@@ -3,6 +3,7 @@ import multer from 'multer';
 import { parseTransactionCSV, parseSharedCsv, parseMultipleFiles } from './parser';
 import { categorizeTransactions, processSharedTransactions, getDefaultCategories, getCategoriesList, addToCategoriesList } from './transactions';
 import { CategorizeRequest, ApiResponse, Categories, Transaction, SharedTransaction } from './types';
+import fs from 'fs';
 
 const router = Router();
 const upload = multer({ storage: multer.memoryStorage() });
@@ -54,6 +55,56 @@ router.post('/categoriesList', (req: Request, res: Response) => {
     addToCategoriesList(name, categories).then((fileName: string) => {
       res.json({ success: true, data: fileName });
     })
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: 'Failed to categorize transactions',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+// Get default categories
+router.get('/users', (req: Request, res: Response) => {
+  try {
+    fs.readdir('/users', { withFileTypes: true }, (err, files) => {
+      if (err) {
+        res.status(500).send(err);
+        return;
+      }
+
+      // Filter only regular files (exclude directories)
+      const fileList = files
+        .filter((dirent) => dirent.isFile())
+        .map((dirent) => dirent.name);
+      res.json({ success: true, data: fileList });
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: 'Failed to get default categories',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+// Categorize transactions (JSON input)
+router.post('/users', (req: Request, res: Response) => {
+  try {
+    const { name, email } = req.body;
+    if (!name || !email) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid request: name and email are required'
+      });
+    }
+
+    // Save user
+    const fileName = `categories/${name}.json`;
+    const jsonData = JSON.stringify({ name: name, email: email }, null, 2); // Pretty print with 2-space indent
+    fs.writeFile(fileName, jsonData, function () {
+      res.send(fileName);
+    });
   } catch (error) {
     res.status(500).json({
       success: false,
