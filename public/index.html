@@ -13,55 +13,248 @@
             background: #f4f4f4;
         }
 
-        textarea,
-        pre {
-            width: 100%;
-            font-family: monospace;
+        .file-upload {
+            margin-bottom: 1.5rem;
         }
 
-        textarea {
-            height: 200px;
+        .file-upload-label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: bold;
+        }
+
+        .controls {
+            margin: 1.5rem 0;
         }
 
         button {
             padding: 0.5rem 1rem;
-            margin-top: 1rem;
+            margin-right: 0.5rem;
             font-size: 1rem;
+            cursor: pointer;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
         }
 
-        pre {
-            background: #fff;
+        button:hover {
+            background-color: #45a049;
+        }
+
+        .button-secondary {
+            background-color: #2196F3;
+        }
+
+        .button-secondary:hover {
+            background-color: #0b7dda;
+        }
+
+        .section {
+            margin-bottom: 2rem;
+            background: white;
             padding: 1rem;
-            border: 1px solid #ccc;
-            white-space: pre-wrap;
-            word-wrap: break-word;
+            border-radius: 4px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        }
+
+        .section-header {
+            margin-top: 0;
+            padding-bottom: 0.5rem;
+            border-bottom: 1px solid #eee;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1rem 0;
+        }
+
+        th,
+        td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+
+        th {
+            background-color: #f2f2f2;
+            position: sticky;
+            top: 0;
+        }
+
+        tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
+
+        tr:hover {
+            background-color: #f1f1f1;
+        }
+
+        .table-container {
+            max-height: 500px;
+            overflow-y: auto;
+            margin-top: 1rem;
+        }
+
+        .loader {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #3498db;
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            animation: spin 2s linear infinite;
+            display: none;
+            margin-left: 10px;
+        }
+
+        @keyframes spin {
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+
+        .hidden {
+            display: none;
         }
     </style>
 </head>
 
 <body>
     <h1>Transaction Categorizer</h1>
-    <p>Paste your transaction JSON data below:</p>
-    <textarea id="inputJson"
-              placeholder='[{"description": "Grocery store", "amount": 54.33}]'></textarea>
-    <br />
-    <button onclick="categorize()">Categorize Transactions</button>
-    <h2>Result:</h2>
-    <pre id="output"></pre>
+
+    <div class="section">
+        <h2 class="section-header">Upload CSV Files</h2>
+        <div class="file-upload">
+            <label class="file-upload-label"
+                   for="transactionFile">Transaction CSV File:</label>
+            <input type="file"
+                   id="transactionFile"
+                   accept=".csv" />
+        </div>
+
+        <div class="file-upload">
+            <label class="file-upload-label"
+                   for="sharedFile">Shared Transactions CSV File (optional):</label>
+            <input type="file"
+                   id="sharedFile"
+                   accept=".csv" />
+        </div>
+
+        <div class="controls">
+            <button id="parseBtn">Parse CSV Only</button>
+            <button id="categorizeBtn">Categorize Transactions</button>
+            <button id="downloadBtn"
+                    class="button-secondary">Download Categorized CSV</button>
+            <div id="loader"
+                 class="loader"></div>
+        </div>
+    </div>
+
+    <div id="csvDataSection"
+         class="section hidden">
+        <h2 class="section-header">CSV Data</h2>
+        <div class="table-container">
+            <table id="csvDataTable"></table>
+        </div>
+    </div>
+
+    <div id="categorizedSection"
+         class="section hidden">
+        <h2 class="section-header">Categorized Results</h2>
+        <div class="table-container">
+            <table id="categorizedTable"></table>
+        </div>
+    </div>
 
     <script>
-        async function categorize() {
-            const input = document.getElementById("inputJson").value;
-            const output = document.getElementById("output");
+        document.addEventListener('DOMContentLoaded', function () {
+            // Get references to DOM elements
+            const transactionFile = document.getElementById('transactionFile');
+            const sharedFile = document.getElementById('sharedFile');
+            const parseBtn = document.getElementById('parseBtn');
+            const categorizeBtn = document.getElementById('categorizeBtn');
+            const downloadBtn = document.getElementById('downloadBtn');
+            const csvDataTable = document.getElementById('csvDataTable');
+            const categorizedTable = document.getElementById('categorizedTable');
+            const csvDataSection = document.getElementById('csvDataSection');
+            const categorizedSection = document.getElementById('categorizedSection');
+            const loader = document.getElementById('loader');
 
-            try {
-                const transactions = JSON.parse(input);
-                const response = await fetch("http://localhost:3000/api/categorize", {
-                    method: "POST",
-                    headers: {
-                        "Content-Type": "application/json"
-                    },
-                    body: JSON.stringify({ transactions: transactions })
+            // Parse button click handler
+            parseBtn.addEventListener('click', async function () {
+                if (!transactionFile.files.length) {
+                    alert('Please select a transaction CSV file');
+                    return;
+                }
+
+                try {
+                    showLoader();
+                    const data = await parseCSV();
+                    displayCSVData(data.transactions);
+                    hideLoader();
+                    csvDataSection.classList.remove('hidden');
+                    categorizedSection.classList.add('hidden');
+                } catch (error) {
+                    hideLoader();
+                    alert('Error parsing CSV: ' + error.message);
+                }
+            });
+
+            // Categorize button click handler
+            categorizeBtn.addEventListener('click', async function () {
+                if (!transactionFile.files.length) {
+                    alert('Please select a transaction CSV file');
+                    return;
+                }
+
+                try {
+                    showLoader();
+                    const data = await categorizeCSV();
+                    displayCSVData(data.transactions);
+                    displayCategorizedData(data.categorized);
+                    hideLoader();
+                    csvDataSection.classList.remove('hidden');
+                    categorizedSection.classList.remove('hidden');
+                } catch (error) {
+                    hideLoader();
+                    alert('Error categorizing transactions: ' + error.message);
+                }
+            });
+
+            // Download button click handler
+            downloadBtn.addEventListener('click', async function () {
+                if (!transactionFile.files.length) {
+                    alert('Please select a transaction CSV file');
+                    return;
+                }
+
+                try {
+                    showLoader();
+                    await downloadCategorizedCSV();
+                    hideLoader();
+                } catch (error) {
+                    hideLoader();
+                    alert('Error downloading CSV: ' + error.message);
+                }
+            });
+
+            // Parse CSV files
+            async function parseCSV() {
+                const formData = new FormData();
+                formData.append('transactions', transactionFile.files[0]);
+
+                if (sharedFile.files.length) {
+                    formData.append('shared', sharedFile.files[0]);
+                }
+
+                const response = await fetch('http://localhost:3000/api/parse-csv', {
+                    method: 'POST',
+                    body: formData
                 });
 
                 if (!response.ok) {
@@ -69,11 +262,171 @@
                 }
 
                 const result = await response.json();
-                output.textContent = JSON.stringify(result, null, 2);
-            } catch (error) {
-                output.textContent = "Error: " + error.message;
+
+                if (!result.success) {
+                    throw new Error(result.error);
+                }
+
+                return {
+                    transactions: result.data.transactions,
+                    shared: result.data.sharedTransactions
+                };
             }
-        }
+
+            // Categorize CSV files
+            async function categorizeCSV() {
+                const formData = new FormData();
+                formData.append('transactions', transactionFile.files[0]);
+
+                if (sharedFile.files.length) {
+                    formData.append('shared', sharedFile.files[0]);
+                }
+
+                const response = await fetch('http://localhost:3000/api/categorize-csv', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (!response.ok) {
+                    throw new Error(`Error ${response.status}: ${response.statusText}`);
+                }
+
+                const parseResponse = await fetch('http://localhost:3000/api/parse-csv', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (!parseResponse.ok) {
+                    throw new Error(`Error ${parseResponse.status}: ${parseResponse.statusText}`);
+                }
+
+                const parseResult = await parseResponse.json();
+                const result = await response.json();
+
+                if (!result.success) {
+                    throw new Error(result.error);
+                }
+
+                return {
+                    transactions: parseResult.data.transactions,
+                    categorized: result.data
+                };
+            }
+
+            // Download categorized CSV
+            async function downloadCategorizedCSV() {
+                const formData = new FormData();
+                formData.append('transactions', transactionFile.files[0]);
+
+                if (sharedFile.files.length) {
+                    formData.append('shared', sharedFile.files[0]);
+                }
+
+                const response = await fetch('http://localhost:3000/api/categorize-csv', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (!response.ok) {
+                    throw new Error(`Error ${response.status}: ${response.statusText}`);
+                }
+
+                const result = await response.json();
+                if (!result.success) {
+                    throw new Error(result.error);
+                }
+
+                // Create a download link for CSV data
+                const csvData = result.data.map(row =>
+                    row.map(cell =>
+                        typeof cell === 'string' && cell.includes(',')
+                            ? `"${cell}"`
+                            : cell
+                    ).join(',')
+                ).join('\n');
+
+                const blob = new Blob([csvData], { type: 'text/csv' });
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `categorized_transactions_${new Date().toISOString().split('T')[0]}.csv`;
+                document.body.appendChild(a);
+                a.click();
+                setTimeout(() => {
+                    document.body.removeChild(a);
+                    window.URL.revokeObjectURL(url);
+                }, 0);
+            }
+
+            // Display CSV data as a table
+            function displayCSVData(transactions) {
+                if (!transactions || transactions.length === 0) {
+                    csvDataTable.innerHTML = '<tr><td>No data available</td></tr>';
+                    return;
+                }
+
+                // Create headers
+                let tableHTML = '<tr>';
+                const headers = Object.keys(transactions[0]);
+                headers.forEach(header => {
+                    tableHTML += `<th>${header}</th>`;
+                });
+                tableHTML += '</tr>';
+
+                // Create rows
+                transactions.forEach(transaction => {
+                    tableHTML += '<tr>';
+                    headers.forEach(header => {
+                        let value = transaction[header];
+                        // Format currency values
+                        if (typeof value === 'number' && (header === 'amount' || header === 'balance')) {
+                            value = `$${value.toFixed(2)}`;
+                        }
+                        tableHTML += `<td>${value !== undefined ? value : ''}</td>`;
+                    });
+                    tableHTML += '</tr>';
+                });
+
+                csvDataTable.innerHTML = tableHTML;
+            }
+
+            // Display categorized data as a table
+            function displayCategorizedData(categorized) {
+                if (!categorized || categorized.length === 0) {
+                    categorizedTable.innerHTML = '<tr><td>No categorized data available</td></tr>';
+                    return;
+                }
+
+                let tableHTML = '';
+
+                // Create table from categorized data
+                categorized.forEach(row => {
+                    tableHTML += '<tr>';
+                    row.forEach(cell => {
+                        tableHTML += `<td>${cell !== undefined ? cell : ''}</td>`;
+                    });
+                    tableHTML += '</tr>';
+                });
+
+                categorizedTable.innerHTML = tableHTML;
+            }
+
+            // Show loader
+            function showLoader() {
+                loader.style.display = 'inline-block';
+                parseBtn.disabled = true;
+                categorizeBtn.disabled = true;
+                downloadBtn.disabled = true;
+            }
+
+            // Hide loader
+            function hideLoader() {
+                loader.style.display = 'none';
+                parseBtn.disabled = false;
+                categorizeBtn.disabled = false;
+                downloadBtn.disabled = false;
+            }
+        });
     </script>
 </body>
 

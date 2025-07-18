@@ -2,23 +2,34 @@ import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import compression from 'compression';
+import path from 'path';
 import routes from './routes';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
 // Middleware
-app.use(helmet());
-app.use(compression());
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      scriptSrc: ["'self'", "'unsafe-inline'"],
+      imgSrc: ["'self'", "data:", "https:"],
+    },
+  },
+})); app.use(compression());
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
+app.use(express.static(path.join(__dirname, '../public')));
+
 // Routes
 app.use('/api', routes);
 
-// Root endpoint
-app.get('/', (req, res) => {
+// Documentation endpoint
+app.get('/api', (req, res) => {
   res.json({
     message: 'Transaction Categorizer API',
     version: '1.0.0',
