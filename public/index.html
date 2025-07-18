@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport"
+          content="width=device-width, initial-scale=1.0" />
+    <title>Transaction Categorizer</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 2rem;
+            background: #f4f4f4;
+        }
+
+        textarea,
+        pre {
+            width: 100%;
+            font-family: monospace;
+        }
+
+        textarea {
+            height: 200px;
+        }
+
+        button {
+            padding: 0.5rem 1rem;
+            margin-top: 1rem;
+            font-size: 1rem;
+        }
+
+        pre {
+            background: #fff;
+            padding: 1rem;
+            border: 1px solid #ccc;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>Transaction Categorizer</h1>
+    <p>Paste your transaction JSON data below:</p>
+    <textarea id="inputJson"
+              placeholder='[{"description": "Grocery store", "amount": 54.33}]'></textarea>
+    <br />
+    <button onclick="categorize()">Categorize Transactions</button>
+    <h2>Result:</h2>
+    <pre id="output"></pre>
+
+    <script>
+        async function categorize() {
+            const input = document.getElementById("inputJson").value;
+            const output = document.getElementById("output");
+
+            try {
+                const transactions = JSON.parse(input);
+                const response = await fetch("http://localhost:3000/api/categorize", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify({ transactions: transactions })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`Error ${response.status}: ${response.statusText}`);
+                }
+
+                const result = await response.json();
+                output.textContent = JSON.stringify(result, null, 2);
+            } catch (error) {
+                output.textContent = "Error: " + error.message;
+            }
+        }
+    </script>
+</body>
+
+</html>

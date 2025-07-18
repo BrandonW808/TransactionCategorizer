@@ -18,8 +18,8 @@ router.get('/categories', (req: Request, res: Response) => {
     const categories = getDefaultCategories();
     res.json({ success: true, data: categories });
   } catch (error) {
-    res.status(500).json({ 
-      success: false, 
+    res.status(500).json({
+      success: false,
       error: 'Failed to get default categories',
       details: error instanceof Error ? error.message : 'Unknown error'
     });
@@ -30,7 +30,6 @@ router.get('/categories', (req: Request, res: Response) => {
 router.post('/categorize', (req: Request, res: Response) => {
   try {
     const { transactions, categories, sharedTransactions }: CategorizeRequest = req.body;
-
     if (!transactions || !Array.isArray(transactions)) {
       return res.status(400).json({
         success: false,
@@ -62,7 +61,7 @@ router.post('/categorize-csv', upload.fields([
 ]), (req: Request, res: Response) => {
   try {
     const files = req.files as { [fieldname: string]: Express.Multer.File[] };
-    
+
     if (!files || !files.transactions || files.transactions.length === 0) {
       return res.status(400).json({
         success: false,
@@ -103,7 +102,7 @@ router.post('/parse-csv', upload.fields([
 ]), (req: Request, res: Response) => {
   try {
     const files = req.files as { [fieldname: string]: Express.Multer.File[] };
-    
+
     if (!files || !files.transactions || files.transactions.length === 0) {
       return res.status(400).json({
         success: false,
@@ -117,16 +116,16 @@ router.post('/parse-csv', upload.fields([
     const transactions = parseTransactionCSV(transactionsCsv);
     const sharedTransactions = sharedCsv ? parseSharedCsv(sharedCsv) : [];
 
-    res.json({ 
-      success: true, 
-      data: { 
-        transactions, 
+    res.json({
+      success: true,
+      data: {
+        transactions,
         sharedTransactions,
         counts: {
           transactions: transactions.length,
           shared: sharedTransactions.length
         }
-      } 
+      }
     });
   } catch (error) {
     res.status(500).json({
