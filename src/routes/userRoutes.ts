@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import { UserService } from '../services/userService';
+import { createUser, deleteUser, getAllUsers, getUserById, searchUsers, updateUser } from '../services/userService';
 import { CreateUserRequest, UpdateUserRequest } from '../types';
 
 const router = Router();
@@ -10,7 +10,7 @@ const router = Router();
  */
 router.get('/', async (req: Request, res: Response) => {
   try {
-    const users = await UserService.getAllUsers();
+    const users = await getAllUsers();
     res.json({ success: true, data: users });
   } catch (error) {
     res.status(500).json({
@@ -35,7 +35,7 @@ router.get('/search', async (req: Request, res: Response) => {
       });
     }
 
-    const users = await UserService.searchUsers(query);
+    const users = await searchUsers(query);
     res.json({ success: true, data: users });
   } catch (error) {
     res.status(500).json({
@@ -52,7 +52,7 @@ router.get('/search', async (req: Request, res: Response) => {
  */
 router.get('/:id', async (req: Request, res: Response) => {
   try {
-    const user = await UserService.getUserById(req.params.id);
+    const user = await getUserById(req.params.id);
     if (!user) {
       return res.status(404).json({
         success: false,
@@ -76,7 +76,7 @@ router.get('/:id', async (req: Request, res: Response) => {
 router.post('/', async (req: Request, res: Response) => {
   try {
     const { name, email }: CreateUserRequest = req.body;
-    
+
     if (!name || !email) {
       return res.status(400).json({
         success: false,
@@ -84,7 +84,7 @@ router.post('/', async (req: Request, res: Response) => {
       });
     }
 
-    const user = await UserService.createUser({ name, email });
+    const user = await createUser({ name, email });
     res.status(201).json({ success: true, data: user });
   } catch (error) {
     const statusCode = error instanceof Error && error.message.includes('already exists') ? 409 : 500;
@@ -103,8 +103,8 @@ router.post('/', async (req: Request, res: Response) => {
 router.put('/:id', async (req: Request, res: Response) => {
   try {
     const updateData: UpdateUserRequest = req.body;
-    const user = await UserService.updateUser(req.params.id, updateData);
-    
+    const user = await updateUser(req.params.id, updateData);
+
     if (!user) {
       return res.status(404).json({
         success: false,
@@ -129,8 +129,8 @@ router.put('/:id', async (req: Request, res: Response) => {
  */
 router.delete('/:id', async (req: Request, res: Response) => {
   try {
-    const deleted = await UserService.deleteUser(req.params.id);
-    
+    const deleted = await deleteUser(req.params.id);
+
     if (!deleted) {
       return res.status(404).json({
         success: false,

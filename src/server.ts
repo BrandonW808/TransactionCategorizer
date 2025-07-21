@@ -4,8 +4,9 @@ import helmet from 'helmet';
 import compression from 'compression';
 import dotenv from 'dotenv';
 import { connectToDatabase, closeDatabase } from './db/mongodb';
-import { CategoryListService } from './services/categoryListService';
+
 import routes from './routes';
+import { initializeDefaultCategories } from './services/categoryListService';
 
 // Load environment variables
 dotenv.config();
@@ -62,7 +63,7 @@ async function startServer() {
     await connectToDatabase();
 
     // Initialize default categories
-    await CategoryListService.initializeDefaultCategories();
+    await initializeDefaultCategories();
 
     // Start server
     server = app.listen(PORT, () => {

@@ -1,5 +1,13 @@
 import { Router, Request, Response } from 'express';
-import { CategoryListService } from '../services/categoryListService';
+import {
+  createCategoryList,
+  deleteCategoryList,
+  getAllCategoryLists,
+  getCategoryListById,
+  getDefaultCategoryList,
+  searchCategoryLists,
+  updateCategoryList
+} from '../services/categoryListService';
 import { CreateCategoryListRequest, UpdateCategoryListRequest } from '../types';
 
 const router = Router();
@@ -10,7 +18,7 @@ const router = Router();
  */
 router.get('/', async (req: Request, res: Response) => {
   try {
-    const categoryLists = await CategoryListService.getAllCategoryLists();
+    const categoryLists = await getAllCategoryLists();
     res.json({ success: true, data: categoryLists });
   } catch (error) {
     res.status(500).json({
@@ -27,7 +35,7 @@ router.get('/', async (req: Request, res: Response) => {
  */
 router.get('/default', async (req: Request, res: Response) => {
   try {
-    const defaultList = await CategoryListService.getDefaultCategoryList();
+    const defaultList = await getDefaultCategoryList();
     if (!defaultList) {
       return res.status(404).json({
         success: false,
@@ -58,7 +66,7 @@ router.get('/search', async (req: Request, res: Response) => {
       });
     }
 
-    const categoryLists = await CategoryListService.searchCategoryLists(query);
+    const categoryLists = await searchCategoryLists(query);
     res.json({ success: true, data: categoryLists });
   } catch (error) {
     res.status(500).json({
@@ -75,7 +83,7 @@ router.get('/search', async (req: Request, res: Response) => {
  */
 router.get('/:id', async (req: Request, res: Response) => {
   try {
-    const categoryList = await CategoryListService.getCategoryListById(req.params.id);
+    const categoryList = await getCategoryListById(req.params.id);
     if (!categoryList) {
       return res.status(404).json({
         success: false,
@@ -107,7 +115,7 @@ router.post('/', async (req: Request, res: Response) => {
       });
     }
 
-    const categoryList = await CategoryListService.createCategoryList({ name, categories, isDefault });
+    const categoryList = await createCategoryList({ name, categories, isDefault });
     res.status(201).json({ success: true, data: categoryList });
   } catch (error) {
     const statusCode = error instanceof Error && error.message.includes('already exists') ? 409 : 500;
@@ -126,7 +134,7 @@ router.post('/', async (req: Request, res: Response) => {
 router.put('/:id', async (req: Request, res: Response) => {
   try {
     const updateData: UpdateCategoryListRequest = req.body;
-    const categoryList = await CategoryListService.updateCategoryList(req.params.id, updateData);
+    const categoryList = await updateCategoryList(req.params.id, updateData);
 
     if (!categoryList) {
       return res.status(404).json({
@@ -152,7 +160,7 @@ router.put('/:id', async (req: Request, res: Response) => {
  */
 router.delete('/:id', async (req: Request, res: Response) => {
   try {
-    const deleted = await CategoryListService.deleteCategoryList(req.params.id);
+    const deleted = await deleteCategoryList(req.params.id);
 
     if (!deleted) {
       return res.status(404).json({
