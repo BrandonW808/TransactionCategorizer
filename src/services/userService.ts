@@ -1,96 +1,76 @@
-import { ObjectId } from 'mongodb';
-import { getUsersCollection } from '../db/mongodb';
-import { User, CreateUserRequest, UpdateUserRequest } from '../types';
+import { UserModel } from '../models/User.model';
+import { CreateUserRequest, UpdateUserRequest, IUserDocument } from '../types';
+import { Types } from 'mongoose';
 
-/**
- * Get all users
- */
-export async function getAllUsers(): Promise<User[]> {
-  const collection = getUsersCollection();
-  return await collection.find({}).toArray();
+export async function createUser(userData: CreateUserRequest): Promise<IUserDocument> {
+  try {
+    const existingUser = await UserModel.findOne({ email: userData.email });
+    if (existingUser) {
+      throw new Error('User with this email already exists');
+    }
+
+    const user = new UserModel(userData);
+    await user.save();
+    return user;
+  } catch (error) {
+    if (error instanceof Error && error.message.includes('duplicate key')) {
+      throw new Error('User with this email already exists');
+    }
+    throw error;
+  }
 }
 
-/**
- * Get a user by ID
- */
-export async function getUserById(id: string): Promise<User | null> {
-  const collection = getUsersCollection();
-  return await collection.findOne({ _id: new ObjectId(id) });
+export async function getAllUsers(): Promise<IUserDocument[]> {
+  return UserModel.find({}).sort({ createdAt: -1 });
 }
 
-/**
- * Get a user by email
- */
-export async function getUserByEmail(email: string): Promise<User | null> {
-  const collection = getUsersCollection();
-  return await collection.findOne({ email });
+export async function getUserById(id: string): Promise<IUserDocument | null> {
+  if (!Types.ObjectId.isValid(id)) {
+    return null;
+  }
+  return UserModel.findById(id);
 }
 
-/**
- * Create a new user
- */
-export async function createUser(data: CreateUserRequest): Promise<User> {
-  const collection = getUsersCollection();
+export async function searchUsers(query: string): Promise<IUserDocument[]> {
+  const searchRegex = new RegExp(query, 'i');
+  return UserModel.find({
+    $or: [
+      { name: searchRegex },
+      { email: searchRegex }
+    ]
+  }).sort({ name: 1 });
+}
 
-  // Check if user with email already exists
-  const existingUser = await getUserByEmail(data.email);
-  if (existingUser) {
-    throw new Error('User with this email already exists');
+export async function updateUser(id: string, updateData: UpdateUserRequest): Promise<IUserDocument | null> {
+  if (!Types.ObjectId.isValid(id)) {
+    return null;
   }
 
-  const newUser: User = {
-    ...data,
-    createdAt: new Date(),
-    updatedAt: new Date()
-  };
-
-  const result = await collection.insertOne(newUser);
-  return { ...newUser, _id: result.insertedId };
-}
-
-/**
- * Update a user
- */
-export async function updateUser(id: string, data: UpdateUserRequest): Promise<User | null> {
-  const collection = getUsersCollection();
-
-  // Check if email is being updated and if it's already taken
-  if (data.email) {
-    const existingUser = await getUserByEmail(data.email);
-    if (existingUser && existingUser._id!.toString() !== id) {
+  // Check if email is being updated and if it already exists
+  if (updateData.email) {
+    const existingUser = await UserModel.findOne({
+      email: updateData.email,
+      _id: { $ne: new Types.ObjectId(id) }
+    });
+    if (existingUser) {
       throw new Error('User with this email already exists');
     }
   }
 
-  const updateData = {
-    ...data,
-    updatedAt: new Date()
-  };
-
-  const result = await collection.findOneAndUpdate(
-    { _id: new ObjectId(id) },
+  const user = await UserModel.findByIdAndUpdate(
+    id,
     { $set: updateData },
-    { returnDocument: 'after' }
+    { new: true, runValidators: true }
   );
 
-  return result;
+  return user;
 }
 
-/**
- * Delete a user
- */
 export async function deleteUser(id: string): Promise<boolean> {
-  const collection = getUsersCollection();
-  const result = await collection.deleteOne({ _id: new ObjectId(id) });
-  return result.deletedCount > 0;
-}
+  if (!Types.ObjectId.isValid(id)) {
+    return false;
+  }
 
-/**
- * Search users by name
- */
-export async function searchUsers(query: string): Promise<User[]> {
-  const collection = getUsersCollection();
-  return await collection.find({
-    name: { $regex: query, $options: 'i' }
-  }).toArray();
+  const result = await UserModel.findByIdAndDelete(id);
+  return result !== null;
 }

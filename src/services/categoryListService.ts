@@ -1,138 +1,116 @@
-import { ObjectId } from 'mongodb';
-import { getCategoryListsCollection } from '../db/mongodb';
-import { CategoryList, CreateCategoryListRequest, UpdateCategoryListRequest, Categories } from '../types';
+import { CategoryListModel } from '../models/CategoryList.model';
+import { CreateCategoryListRequest, UpdateCategoryListRequest, ICategoryListDocument } from '../types';
+import { Types } from 'mongoose';
 
-/**
- * Get all category lists
- */
-export async function getAllCategoryLists(): Promise<CategoryList[]> {
-  const collection = getCategoryListsCollection();
-  return await collection.find({}).toArray();
+export async function createCategoryList(data: CreateCategoryListRequest): Promise<ICategoryListDocument> {
+  try {
+    const existingList = await CategoryListModel.findOne({ name: data.name });
+    if (existingList) {
+      throw new Error('Category list with this name already exists');
+    }
+
+    const categoryList = new CategoryListModel(data);
+    await categoryList.save();
+    return categoryList;
+  } catch (error) {
+    if (error instanceof Error && error.message.includes('duplicate key')) {
+      throw new Error('Category list with this name already exists');
+    }
+    throw error;
+  }
 }
 
-/**
- * Get a category list by ID
- */
-export async function getCategoryListById(id: string): Promise<CategoryList | null> {
-  const collection = getCategoryListsCollection();
-  return await collection.findOne({ _id: new ObjectId(id) });
+export async function getAllCategoryLists(): Promise<ICategoryListDocument[]> {
+  return CategoryListModel.find({}).sort({ createdAt: -1 });
 }
 
-/**
- * Get a category list by name
- */
-export async function getCategoryListByName(name: string): Promise<CategoryList | null> {
-  const collection = getCategoryListsCollection();
-  return await collection.findOne({ name });
+export async function getCategoryListById(id: string): Promise<ICategoryListDocument | null> {
+  if (!Types.ObjectId.isValid(id)) {
+    return null;
+  }
+  return CategoryListModel.findById(id);
 }
 
-/**
- * Get the default category list
- */
-export async function getDefaultCategoryList(): Promise<CategoryList | null> {
-  const collection = getCategoryListsCollection();
-  return await collection.findOne({ isDefault: true });
+export async function getDefaultCategoryList(): Promise<ICategoryListDocument | null> {
+  return CategoryListModel.findOne({ isDefault: true });
 }
 
-/**
- * Create a new category list
- */
-export async function createCategoryList(data: CreateCategoryListRequest): Promise<CategoryList> {
-  const collection = getCategoryListsCollection();
+export async function searchCategoryLists(query: string): Promise<ICategoryListDocument[]> {
+  const searchRegex = new RegExp(query, 'i');
+  return CategoryListModel.find({ name: searchRegex }).sort({ name: 1 });
+}
 
-  // Check if category list with name already exists
-  const existingList = await getCategoryListByName(data.name);
-  if (existingList) {
-    throw new Error('Category list with this name already exists');
+export async function updateCategoryList(
+  id: string,
+  updateData: UpdateCategoryListRequest
+): Promise<ICategoryListDocument | null> {
+  if (!Types.ObjectId.isValid(id)) {
+    return null;
   }
 
-  // If this is set as default, unset any existing default
-  if (data.isDefault) {
-    await collection.updateMany(
-      { isDefault: true },
-      { $set: { isDefault: false } }
-    );
-  }
-
-  const newCategoryList: CategoryList = {
-    ...data,
-    createdAt: new Date(),
-    updatedAt: new Date()
-  };
-
-  const result = await collection.insertOne(newCategoryList);
-  return { ...newCategoryList, _id: result.insertedId };
-}
-
-/**
- * Update a category list
- */
-export async function updateCategoryList(id: string, data: UpdateCategoryListRequest): Promise<CategoryList | null> {
-  const collection = getCategoryListsCollection();
-
-  // Check if name is being updated and if it's already taken
-  if (data.name) {
-    const existingList = await getCategoryListByName(data.name);
-    if (existingList && existingList._id!.toString() !== id) {
+  // Check if name is being updated and if it already exists
+  if (updateData.name) {
+    const existingList = await CategoryListModel.findOne({
+      name: updateData.name,
+      _id: { $ne: new Types.ObjectId(id) }
+    });
+    if (existingList) {
       throw new Error('Category list with this name already exists');
     }
   }
 
-  // If this is set as default, unset any existing default
-  if (data.isDefault) {
-    await collection.updateMany(
-      { isDefault: true, _id: { $ne: new ObjectId(id) } },
-      { $set: { isDefault: false } }
-    );
-  }
-
-  const updateData = {
-    ...data,
-    updatedAt: new Date()
-  };
-
-  const result = await collection.findOneAndUpdate(
-    { _id: new ObjectId(id) },
+  // If setting as default, unset other defaults (handled by pre-save hook)
+  const categoryList = await CategoryListModel.findByIdAndUpdate(
+    id,
     { $set: updateData },
-    { returnDocument: 'after' }
+    { new: true, runValidators: true }
   );
 
-  return result;
+  return categoryList;
 }
 
-/**
- * Delete a category list
- */
-export async function deleteCategoryList(id: string): Promise<boolean> {
-  const collection = getCategoryListsCollection();
-
-  // Don't allow deletion of default category list
-  const categoryList = await getCategoryListById(id);
-  if (categoryList?.isDefault) {
-    throw new Error('Cannot delete the default category list');
+export async function setDefaultCategoryList(id: string): Promise<ICategoryListDocument | null> {
+  if (!Types.ObjectId.isValid(id)) {
+    return null;
   }
 
-  const result = await collection.deleteOne({ _id: new ObjectId(id) });
-  return result.deletedCount > 0;
+  // Unset all current defaults
+  await CategoryListModel.updateMany(
+    { isDefault: true },
+    { $set: { isDefault: false } }
+  );
+
+  // Set the new default
+  return CategoryListModel.findByIdAndUpdate(
+    id,
+    { $set: { isDefault: true } },
+    { new: true }
+  );
 }
 
-/**
- * Search category lists by name
- */
-export async function searchCategoryLists(query: string): Promise<CategoryList[]> {
-  const collection = getCategoryListsCollection();
-  return await collection.find({
-    name: { $regex: query, $options: 'i' }
-  }).toArray();
+export async function deleteCategoryList(id: string): Promise<boolean> {
+  if (!Types.ObjectId.isValid(id)) {
+    return false;
+  }
+
+  const result = await CategoryListModel.findByIdAndDelete(id);
+  return result !== null;
 }
 
-/**
- * Initialize default categories if none exist
- */
+export async function ensureDefaultCategoryList(): Promise<void> {
+  const defaultList = await getDefaultCategoryList();
+  if (!defaultList) {
+    const anyList = await CategoryListModel.findOne();
+    if (anyList) {
+      await setDefaultCategoryList(anyList._id.toString());
+    }
+  }
+}
+
 export async function initializeDefaultCategories(): Promise<void> {
   const defaultList = await getDefaultCategoryList();
   if (!defaultList) {
-    const defaultCategories: Categories = {
+    const defaultCategories = {
       Income: {
         Kinect: ["dataannotation", "kinect"],
         Other: ["e-transfer", "deposit", "income"]

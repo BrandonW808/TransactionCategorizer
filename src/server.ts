@@ -3,7 +3,7 @@ import cors from 'cors';
 import helmet from 'helmet';
 import compression from 'compression';
 import dotenv from 'dotenv';
-import { connectToDatabase, closeDatabase } from './db/mongodb';
+import { connectToDatabase, closeDatabase } from './db/mongoose';
 
 import routes from './routes';
 import { initializeDefaultCategories } from './services/categoryListService';
@@ -59,7 +59,7 @@ let server: any;
 
 async function startServer() {
   try {
-    // Connect to MongoDB
+    // Connect to MongoDB with Mongoose
     await connectToDatabase();
 
     // Initialize default categories

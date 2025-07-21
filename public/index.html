@@ -258,6 +258,7 @@
 
             // Load category lists on page load
             loadCategoryLists();
+            loadUserList();
 
             // Refresh lists button
             refreshListsBtn.addEventListener('click', loadCategoryLists);
@@ -337,7 +338,7 @@
                     categoryList.innerHTML = '<option value="">Use default categories</option>';
                     result.data.forEach(list => {
                         const option = document.createElement('option');
-                        option.value = list._id;
+                        option.value = list._id || list.id;
                         option.textContent = list.name + (list.isDefault ? ' (Default)' : '');
                         categoryList.appendChild(option);
                     });
@@ -346,7 +347,7 @@
                 }
             }
 
-            // Load category lists
+            // Load user list
             async function loadUserList() {
                 try {
                     const response = await fetch('/api/users');
@@ -357,14 +358,14 @@
                     }
 
                     userList.innerHTML = '<option value="">None</option>';
-                    result.data.forEach(list => {
+                    result.data.forEach(user => {
                         const option = document.createElement('option');
-                        option.value = user._id;
+                        option.value = user._id || user.id;
                         option.textContent = user.name;
                         userList.appendChild(option);
                     });
                 } catch (error) {
-                    showStatus('Error loading category lists: ' + error.message, 'error');
+                    showUserStatus('Error loading user lists: ' + error.message, 'error');
                 }
             }
 
@@ -581,6 +582,20 @@
                 if (type === 'success') {
                     setTimeout(() => {
                         status.style.display = 'none';
+                    }, 5000);
+                }
+            }
+
+            // Show user status message
+            function showUserStatus(message, type) {
+                userStatus.textContent = message;
+                userStatus.className = 'status ' + type;
+                userStatus.style.display = 'block';
+
+                // Auto-hide success messages after 5 seconds
+                if (type === 'success') {
+                    setTimeout(() => {
+                        userStatus.style.display = 'none';
                     }, 5000);
                 }
             }

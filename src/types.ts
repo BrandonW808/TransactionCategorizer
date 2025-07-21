@@ -1,4 +1,4 @@
-import { ObjectId } from 'mongodb';
+import { Document, Types } from 'mongoose';
 
 export interface Transaction {
   date: string;
@@ -47,17 +47,19 @@ export interface SuccessResponse<T> {
 
 export type ApiResponse<T> = SuccessResponse<T> | ErrorResponse;
 
-// New interfaces for MongoDB storage
-export interface User {
-  _id?: ObjectId;
+// Mongoose document interfaces
+export interface IUser {
   name: string;
   email: string;
   createdAt?: Date;
   updatedAt?: Date;
 }
 
-export interface CategoryList {
-  _id?: ObjectId;
+export interface IUserDocument extends IUser, Document {
+  _id: Types.ObjectId;
+}
+
+export interface ICategoryList {
   name: string;
   categories: Categories;
   isDefault?: boolean;
@@ -65,6 +67,11 @@ export interface CategoryList {
   updatedAt?: Date;
 }
 
+export interface ICategoryListDocument extends ICategoryList, Document {
+  _id: Types.ObjectId;
+}
+
+// Request interfaces
 export interface CreateUserRequest {
   name: string;
   email: string;
