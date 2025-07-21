@@ -164,6 +164,22 @@
     <h1>Transaction Categorizer v2.0</h1>
 
     <div class="section">
+        <h2 class="section-header">User Information</h2>
+
+        <div class="category-select-container">
+            <label for="userList">User List:</label>
+            <select id="userList">
+                <option value="">Loading user lists...</option>
+            </select>
+            <button id="refreshUsersBtn"
+                    class="button-secondary">Refresh Users</button>
+        </div>
+
+        <div id="user-status"
+             class="status"></div>
+    </div>
+
+    <div class="section">
         <h2 class="section-header">Upload CSV Files</h2>
 
         <div class="category-select-container">
@@ -229,19 +245,23 @@
             const categorizeBtn = document.getElementById('categorizeBtn');
             const downloadBtn = document.getElementById('downloadBtn');
             const refreshListsBtn = document.getElementById('refreshListsBtn');
+            const refreshUsersBtn = document.getElementById('refreshUsersBtn');
             const categoryList = document.getElementById('categoryList');
+            const userList = document.getElementById('userList');
             const csvDataTable = document.getElementById('csvDataTable');
             const categorizedTable = document.getElementById('categorizedTable');
             const csvDataSection = document.getElementById('csvDataSection');
             const categorizedSection = document.getElementById('categorizedSection');
             const loader = document.getElementById('loader');
             const status = document.getElementById('status');
+            const userStatus = document.getElementById('user-status');
 
             // Load category lists on page load
             loadCategoryLists();
 
             // Refresh lists button
             refreshListsBtn.addEventListener('click', loadCategoryLists);
+            refreshUsersBtn.addEventListener('click', loadUserList);
 
             // Parse button click handler
             parseBtn.addEventListener('click', async function () {
@@ -320,6 +340,28 @@
                         option.value = list._id;
                         option.textContent = list.name + (list.isDefault ? ' (Default)' : '');
                         categoryList.appendChild(option);
+                    });
+                } catch (error) {
+                    showStatus('Error loading category lists: ' + error.message, 'error');
+                }
+            }
+
+            // Load category lists
+            async function loadUserList() {
+                try {
+                    const response = await fetch('/api/users');
+                    const result = await response.json();
+
+                    if (!result.success) {
+                        throw new Error(result.error);
+                    }
+
+                    userList.innerHTML = '<option value="">None</option>';
+                    result.data.forEach(list => {
+                        const option = document.createElement('option');
+                        option.value = user._id;
+                        option.textContent = user.name;
+                        userList.appendChild(option);
                     });
                 } catch (error) {
                     showStatus('Error loading category lists: ' + error.message, 'error');
