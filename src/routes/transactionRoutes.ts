@@ -2,7 +2,7 @@ import { Router, Request, Response } from 'express';
 import multer from 'multer';
 import { parseTransactionCSV, parseSharedCsv } from '../parser';
 import { categorizeTransactions, processSharedTransactions } from '../transactions';
-import { CategoryListService } from '../services/categoryListService';
+import * as categoryListService from '../services/categoryListService';
 import { CategorizeRequest, Categories } from '../types';
 
 const router = Router();
@@ -27,7 +27,7 @@ router.post('/categorize', async (req: Request, res: Response) => {
 
     // If categoryListId is provided, use that category list
     if (categoryListId) {
-      const categoryList = await CategoryListService.getCategoryListById(categoryListId);
+      const categoryList = await categoryListService.getCategoryListById(categoryListId);
       if (!categoryList) {
         return res.status(404).json({
           success: false,
@@ -42,7 +42,7 @@ router.post('/categorize', async (req: Request, res: Response) => {
     }
     // Otherwise, use the default category list
     else {
-      const defaultList = await CategoryListService.getDefaultCategoryList();
+      const defaultList = await categoryListService.getDefaultCategoryList();
       if (!defaultList) {
         return res.status(500).json({
           success: false,
@@ -97,7 +97,7 @@ router.post('/categorize-csv', upload.fields([
 
     // If categoryListId is provided, use that category list
     if (categoryListId) {
-      const categoryList = await CategoryListService.getCategoryListById(categoryListId);
+      const categoryList = await categoryListService.getCategoryListById(categoryListId);
       if (!categoryList) {
         return res.status(404).json({
           success: false,
@@ -119,7 +119,7 @@ router.post('/categorize-csv', upload.fields([
     }
     // Otherwise, use the default category list
     else {
-      const defaultList = await CategoryListService.getDefaultCategoryList();
+      const defaultList = await categoryListService.getDefaultCategoryList();
       if (!defaultList) {
         return res.status(500).json({
           success: false,
@@ -208,7 +208,7 @@ router.post('/export-csv', async (req: Request, res: Response) => {
 
     // If categoryListId is provided, use that category list
     if (categoryListId) {
-      const categoryList = await CategoryListService.getCategoryListById(categoryListId);
+      const categoryList = await categoryListService.getCategoryListById(categoryListId);
       if (!categoryList) {
         return res.status(404).json({
           success: false,
@@ -223,7 +223,7 @@ router.post('/export-csv', async (req: Request, res: Response) => {
     }
     // Otherwise, use the default category list
     else {
-      const defaultList = await CategoryListService.getDefaultCategoryList();
+      const defaultList = await categoryListService.getDefaultCategoryList();
       if (!defaultList) {
         return res.status(500).json({
           success: false,

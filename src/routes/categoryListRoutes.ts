@@ -99,7 +99,7 @@ router.get('/:id', async (req: Request, res: Response) => {
 router.post('/', async (req: Request, res: Response) => {
   try {
     const { name, categories, isDefault }: CreateCategoryListRequest = req.body;
-    
+
     if (!name || !categories) {
       return res.status(400).json({
         success: false,
@@ -127,7 +127,7 @@ router.put('/:id', async (req: Request, res: Response) => {
   try {
     const updateData: UpdateCategoryListRequest = req.body;
     const categoryList = await CategoryListService.updateCategoryList(req.params.id, updateData);
-    
+
     if (!categoryList) {
       return res.status(404).json({
         success: false,
@@ -153,7 +153,7 @@ router.put('/:id', async (req: Request, res: Response) => {
 router.delete('/:id', async (req: Request, res: Response) => {
   try {
     const deleted = await CategoryListService.deleteCategoryList(req.params.id);
-    
+
     if (!deleted) {
       return res.status(404).json({
         success: false,

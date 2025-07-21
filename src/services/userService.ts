@@ -2,97 +2,95 @@ import { ObjectId } from 'mongodb';
 import { getUsersCollection } from '../db/mongodb';
 import { User, CreateUserRequest, UpdateUserRequest } from '../types';
 
-export class UserService {
-  /**
-   * Get all users
-   */
-  static async getAllUsers(): Promise<User[]> {
-    const collection = getUsersCollection();
-    return await collection.find({}).toArray();
+/**
+ * Get all users
+ */
+export async function getAllUsers(): Promise<User[]> {
+  const collection = getUsersCollection();
+  return await collection.find({}).toArray();
+}
+
+/**
+ * Get a user by ID
+ */
+export async function getUserById(id: string): Promise<User | null> {
+  const collection = getUsersCollection();
+  return await collection.findOne({ _id: new ObjectId(id) });
+}
+
+/**
+ * Get a user by email
+ */
+export async function getUserByEmail(email: string): Promise<User | null> {
+  const collection = getUsersCollection();
+  return await collection.findOne({ email });
+}
+
+/**
+ * Create a new user
+ */
+export async function createUser(data: CreateUserRequest): Promise<User> {
+  const collection = getUsersCollection();
+
+  // Check if user with email already exists
+  const existingUser = await getUserByEmail(data.email);
+  if (existingUser) {
+    throw new Error('User with this email already exists');
   }
 
-  /**
-   * Get a user by ID
-   */
-  static async getUserById(id: string): Promise<User | null> {
-    const collection = getUsersCollection();
-    return await collection.findOne({ _id: new ObjectId(id) });
-  }
+  const newUser: User = {
+    ...data,
+    createdAt: new Date(),
+    updatedAt: new Date()
+  };
 
-  /**
-   * Get a user by email
-   */
-  static async getUserByEmail(email: string): Promise<User | null> {
-    const collection = getUsersCollection();
-    return await collection.findOne({ email });
-  }
+  const result = await collection.insertOne(newUser);
+  return { ...newUser, _id: result.insertedId };
+}
 
-  /**
-   * Create a new user
-   */
-  static async createUser(data: CreateUserRequest): Promise<User> {
-    const collection = getUsersCollection();
+/**
+ * Update a user
+ */
+export async function updateUser(id: string, data: UpdateUserRequest): Promise<User | null> {
+  const collection = getUsersCollection();
 
-    // Check if user with email already exists
-    const existingUser = await this.getUserByEmail(data.email);
-    if (existingUser) {
+  // Check if email is being updated and if it's already taken
+  if (data.email) {
+    const existingUser = await getUserByEmail(data.email);
+    if (existingUser && existingUser._id!.toString() !== id) {
       throw new Error('User with this email already exists');
     }
-
-    const newUser: User = {
-      ...data,
-      createdAt: new Date(),
-      updatedAt: new Date()
-    };
-
-    const result = await collection.insertOne(newUser);
-    return { ...newUser, _id: result.insertedId };
   }
 
-  /**
-   * Update a user
-   */
-  static async updateUser(id: string, data: UpdateUserRequest): Promise<User | null> {
-    const collection = getUsersCollection();
+  const updateData = {
+    ...data,
+    updatedAt: new Date()
+  };
 
-    // Check if email is being updated and if it's already taken
-    if (data.email) {
-      const existingUser = await this.getUserByEmail(data.email);
-      if (existingUser && existingUser._id!.toString() !== id) {
-        throw new Error('User with this email already exists');
-      }
-    }
+  const result = await collection.findOneAndUpdate(
+    { _id: new ObjectId(id) },
+    { $set: updateData },
+    { returnDocument: 'after' }
+  );
 
-    const updateData = {
-      ...data,
-      updatedAt: new Date()
-    };
+  return result;
+}
 
-    const result = await collection.findOneAndUpdate(
-      { _id: new ObjectId(id) },
-      { $set: updateData },
-      { returnDocument: 'after' }
-    );
+/**
+ * Delete a user
+ */
+export async function deleteUser(id: string): Promise<boolean> {
+  const collection = getUsersCollection();
+  const result = await collection.deleteOne({ _id: new ObjectId(id) });
+  return result.deletedCount > 0;
+}
 
-    return result;
-  }
-
-  /**
-   * Delete a user
-   */
-  static async deleteUser(id: string): Promise<boolean> {
-    const collection = getUsersCollection();
-    const result = await collection.deleteOne({ _id: new ObjectId(id) });
-    return result.deletedCount > 0;
-  }
-
-  /**
-   * Search users by name
-   */
-  static async searchUsers(query: string): Promise<User[]> {
-    const collection = getUsersCollection();
-    return await collection.find({
-      name: { $regex: query, $options: 'i' }
-    }).toArray();
-  }
+/**
+ * Search users by name
+ */
+export async function searchUsers(query: string): Promise<User[]> {
+  const collection = getUsersCollection();
+  return await collection.find({
+    name: { $regex: query, $options: 'i' }
+  }).toArray();
 }
